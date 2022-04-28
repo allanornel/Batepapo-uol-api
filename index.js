@@ -25,7 +25,7 @@ app.post("/participants", async (req, res) => {
     to: "Todos",
     text: "entra na sala...",
     type: "status",
-    time: dayjs().format("HH:MM:SS"),
+    time: dayjs().format("HH:mm:ss"),
   };
   try {
     await mongoClient.connect();
@@ -45,7 +45,7 @@ app.get("/participants", async (req, res) => {
     await mongoClient.connect();
     const db = mongoClient.db("projeto12");
     const participants = await db.collection("participants").find({}).toArray();
-    res.sendStatus(200).send(participants);
+    res.status(200).send(participants);
     mongoClient.close();
   } catch (e) {
     console.log("Erro na tentativa de conectar ao banco de dados", e);
