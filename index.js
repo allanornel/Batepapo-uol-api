@@ -11,14 +11,23 @@ app.use(json());
 app.use(cors());
 
 const mongoClient = new MongoClient(process.env.MONGO_URI);
+const promise = mongoClient.connect();
+promise.then(() => console.log(""));
+promise.catch((e) => console.log("Erro na conexão", e));
+const db = mongoClient.db("projeto12");
 
 app.post("/participants", async (req, res) => {
-  // const schema = Joi.object({
-  //   username: Joi.string().required().alphanum(),
-  // });
+  const schema = Joi.object({
+    name: Joi.string().required().alphanum(),
+  });
+  const validacao = schema.validate(req.body);
+  if (validacao.error) {
+    res
+      .status(422)
+      .send(validacao.error.details.map((detail) => detail.message));
+    return;
+  }
   let { name } = req.body;
-  //falta joi e verificadores
-
   let objParticipante = { name, lastStatus: Date.now() };
   let objMessage = {
     from: name,
@@ -28,10 +37,7 @@ app.post("/participants", async (req, res) => {
     time: dayjs().format("HH:mm:ss"),
   };
   try {
-    await mongoClient.connect();
-    const db = mongoClient.db("projeto12");
     const find = await db.collection("participants").findOne({ name });
-    console.log(find);
     if (!find) {
       await db.collection("participants").insertOne(objParticipante);
       await db.collection("messages").insertOne(objMessage);
@@ -39,55 +45,58 @@ app.post("/participants", async (req, res) => {
     } else {
       res.sendStatus(409);
     }
-
-    mongoClient.close();
   } catch (e) {
     res.status(500).send("Erro na tentativa de cadastrar o participante", e);
-    mongoClient.close();
   }
 });
 
 app.get("/participants", async (req, res) => {
   try {
-    await mongoClient.connect();
-    const db = mongoClient.db("projeto12");
     const participants = await db.collection("participants").find({}).toArray();
     res.status(200).send(participants);
-    mongoClient.close();
   } catch (e) {
     console.log("Erro na tentativa de conectar ao banco de dados", e);
-    mongoClient.close();
   }
 });
 
 app.post("/messages", async (req, res) => {
+  const schema = Joi.object({
+    to: Joi.string().required().alphanum(),
+    text: Joi.string().required(),
+    type: Joi.string().valid("message", "private_message").required(),
+  });
+  const validacao = schema.validate(req.body);
+  if (validacao.error) {
+    res
+      .status(422)
+      .send(validacao.error.details.map((detail) => detail.message));
+    return;
+  }
   const from = req.headers.user;
   const { to, text, type } = req.body;
-  // **to** e **text** devem ser strings não vazias
-  // **type** só pode ser 'message' ou 'private_message'
-  // **from** deve ser um participante existente na lista de participantes
-
   const obj = { from, to, text, type, time: dayjs().format("HH:mm:ss") };
   console.log(obj);
   try {
-    await mongoClient.connect();
-    const db = mongoClient.db("projeto12");
-    await db.collection("messages").insertOne(obj);
-    res.status(201);
-    mongoClient.close();
+    const find = await db
+      .collection("participants")
+      .find({ name: from })
+      .toArray();
+    console.log(find);
+    if (find && find.length > 0) {
+      await db.collection("messages").insertOne(obj);
+      res.sendStatus(201);
+    } else {
+      res.status(422).send("O participante não consta na lista de usuários");
+    }
   } catch (e) {
     console.log("Erro na tentativa de conectar ao banco de dados", e);
-    mongoClient.close();
   }
-  res.sendStatus(201);
 });
 
 app.get("/messages", async (req, res) => {
   const { user } = req.headers;
   const limit = parseInt(req.query.limit);
   try {
-    await mongoClient.connect();
-    const db = mongoClient.db("projeto12");
     const messages = await db
       .collection("messages")
       .find({ $or: [{ to: user }, { from: user }, { to: "Todos" }] })
@@ -97,18 +106,14 @@ app.get("/messages", async (req, res) => {
     } else {
       res.status(200).send(messages);
     }
-    mongoClient.close();
   } catch (e) {
     console.log("Erro na tentativa de conectar ao banco de dados", e);
-    mongoClient.close();
   }
 });
 
 app.post("/status", async (req, res) => {
   const { user } = req.headers;
   try {
-    await mongoClient.connect();
-    const db = mongoClient.db("projeto12");
     const find = await db
       .collection("participants")
       .find({ name: user })
@@ -121,11 +126,20 @@ app.post("/status", async (req, res) => {
     } else {
       res.sendStatus(404);
     }
-    mongoClient.close();
   } catch (e) {
     console.log("Erro na tentativa de conectar ao banco de dados", e);
-    mongoClient.close();
   }
 });
+
+// setInterval(() => {
+//   // messagem da retirada da sala
+//   let objMessage = {
+//     from: name,
+//     to: "Todos",
+//     text: "sai na sala...",
+//     type: "status",
+//     time: dayjs().format("HH:mm:ss"),
+//   };
+// }, 15 * 1000);
 
 app.listen(5000);
