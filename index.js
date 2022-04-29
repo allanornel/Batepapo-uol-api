@@ -42,7 +42,7 @@ app.post("/participants", async (req, res) => {
 
     mongoClient.close();
   } catch (e) {
-    console.log("Erro na tentativa de conectar ao banco de dados", e);
+    res.status(500).send("Erro na tentativa de cadastrar o participante", e);
     mongoClient.close();
   }
 });
@@ -88,9 +88,12 @@ app.get("/messages", async (req, res) => {
   try {
     await mongoClient.connect();
     const db = mongoClient.db("projeto12");
-    const messages = await db.collection("messages").find({}).toArray();
+    const messages = await db
+      .collection("messages")
+      .find({ $or: [{ to: user }, { from: user }, { to: "Todos" }] })
+      .toArray();
     if (limit) {
-      res.status(200).send(messages);
+      res.status(200).send(messages.slice(-limit));
     } else {
       res.status(200).send(messages);
     }
@@ -103,7 +106,6 @@ app.get("/messages", async (req, res) => {
 
 app.post("/status", async (req, res) => {
   const { user } = req.headers;
-
   try {
     await mongoClient.connect();
     const db = mongoClient.db("projeto12");
