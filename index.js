@@ -114,7 +114,9 @@ app.post("/status", async (req, res) => {
       .find({ name: user })
       .toArray();
     if (find) {
-      // await db.collection("participants").findOneAndUpdate({ lastStatus: Date.now() });
+      await db
+        .collection("participants")
+        .updateOne({ name: user }, { $set: { lastStatus: Date.now() } });
       res.sendStatus(200);
     } else {
       res.sendStatus(404);
