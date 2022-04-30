@@ -14,7 +14,7 @@ const mongoClient = new MongoClient(process.env.MONGO_URI);
 const promise = mongoClient.connect();
 promise.then(() => console.log(""));
 promise.catch((e) => console.log("Erro na conexão", e));
-const db = mongoClient.db("projeto12");
+const db = mongoClient.db(process.env.DATABASE);
 
 app.post("/participants", async (req, res) => {
   const schema = Joi.object({
@@ -55,7 +55,7 @@ app.get("/participants", async (req, res) => {
     const participants = await db.collection("participants").find({}).toArray();
     res.status(200).send(participants);
   } catch (e) {
-    console.log("Erro na tentativa de conectar ao banco de dados", e);
+    console.log("Erro na tentativa de obter os participantes", e);
   }
 });
 
@@ -89,7 +89,7 @@ app.post("/messages", async (req, res) => {
       res.status(422).send("O participante não consta na lista de usuários");
     }
   } catch (e) {
-    console.log("Erro na tentativa de conectar ao banco de dados", e);
+    console.log("Erro na tentativa de postar mensagens", e);
   }
 });
 
@@ -107,7 +107,7 @@ app.get("/messages", async (req, res) => {
       res.status(200).send(messages);
     }
   } catch (e) {
-    console.log("Erro na tentativa de conectar ao banco de dados", e);
+    console.log("Erro na tentativa de obter as mensagens", e);
   }
 });
 
@@ -127,19 +127,33 @@ app.post("/status", async (req, res) => {
       res.sendStatus(404);
     }
   } catch (e) {
-    console.log("Erro na tentativa de conectar ao banco de dados", e);
+    console.log("Erro na tentativa de atualizar o status", e);
   }
 });
 
-// setInterval(() => {
-//   // messagem da retirada da sala
-//   let objMessage = {
-//     from: name,
-//     to: "Todos",
-//     text: "sai na sala...",
-//     type: "status",
-//     time: dayjs().format("HH:mm:ss"),
-//   };
-// }, 15 * 1000);
+setInterval(async () => {
+  try {
+    const find = await db
+      .collection("participants")
+      .find({ lastStatus: { $lte: Date.now() - 10000 } })
+      .toArray();
+    console.log(find);
+    if (find && find.length > 0) {
+      find.map(async (participant) => {
+        let objMessage = {
+          from: participant.name,
+          to: "Todos",
+          text: "sai da sala...",
+          type: "status",
+          time: dayjs().format("HH:mm:ss"),
+        };
+        await db.collection("participants").deleteOne({ _id: participant._id });
+        await db.collection("messages").insertOne(objMessage);
+      });
+    }
+  } catch (e) {
+    console.log("Erro no loop de remoção automática de usuários inativos", e);
+  }
+}, 15 * 1000);
 
 app.listen(5000);
