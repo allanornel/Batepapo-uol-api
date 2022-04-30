@@ -17,7 +17,7 @@ const db = mongoClient.db(process.env.DATABASE);
 
 app.post("/participants", async (req, res) => {
   const schema = Joi.object({
-    name: Joi.string().required().alphanum(),
+    name: Joi.string().required().alphanum().trim(),
   });
   const validacao = schema.validate(req.body);
   if (validacao.error) {
@@ -26,7 +26,7 @@ app.post("/participants", async (req, res) => {
       .send(validacao.error.details.map((detail) => detail.message));
     return;
   }
-  let { name } = req.body;
+  let { name } = validacao.value;
   let objParticipante = { name, lastStatus: Date.now() };
   let objMessage = {
     from: name,
@@ -35,6 +35,7 @@ app.post("/participants", async (req, res) => {
     type: "status",
     time: dayjs().format("HH:mm:ss"),
   };
+  console.log(objMessage);
   try {
     const find = await db.collection("participants").findOne({ name });
     if (!find) {
@@ -55,14 +56,15 @@ app.get("/participants", async (req, res) => {
     res.status(200).send(participants);
   } catch (e) {
     console.log("Erro na tentativa de obter os participantes", e);
+    res.status(500).send(e);
   }
 });
 
 app.post("/messages", async (req, res) => {
   const schema = Joi.object({
-    to: Joi.string().required().alphanum(),
-    text: Joi.string().required(),
-    type: Joi.string().valid("message", "private_message").required(),
+    to: Joi.string().required().alphanum().trim(),
+    text: Joi.string().required().trim(),
+    type: Joi.string().valid("message", "private_message").required().trim(),
   });
   const validacao = schema.validate(req.body);
   if (validacao.error) {
@@ -72,7 +74,7 @@ app.post("/messages", async (req, res) => {
     return;
   }
   const from = req.headers.user;
-  const { to, text, type } = req.body;
+  const { to, text, type } = validacao.value;
   const obj = { from, to, text, type, time: dayjs().format("HH:mm:ss") };
   try {
     const find = await db
@@ -87,6 +89,7 @@ app.post("/messages", async (req, res) => {
     }
   } catch (e) {
     console.log("Erro na tentativa de postar mensagens", e);
+    res.status(500).send(e);
   }
 });
 
@@ -105,6 +108,7 @@ app.get("/messages", async (req, res) => {
     }
   } catch (e) {
     console.log("Erro na tentativa de obter as mensagens", e);
+    res.status(500).send(e);
   }
 });
 
@@ -125,6 +129,7 @@ app.post("/status", async (req, res) => {
     }
   } catch (e) {
     console.log("Erro na tentativa de atualizar o status", e);
+    res.status(500).send(e);
   }
 });
 
@@ -149,6 +154,7 @@ setInterval(async () => {
     }
   } catch (e) {
     console.log("Erro no loop de remoção automática de usuários inativos", e);
+    res.status(500).send(e);
   }
 }, 15 * 1000);
 
@@ -161,8 +167,6 @@ app.delete("/messages/:id", async (req, res) => {
       .collection("messages")
       .find({ _id: new ObjectId(id) })
       .toArray();
-
-    console.log(find);
 
     if (!find || find.length === 0) {
       res.sendStatus(404);
